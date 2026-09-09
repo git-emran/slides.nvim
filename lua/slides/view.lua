@@ -1,6 +1,8 @@
 local M = {}
 
 M.ns_id = vim.api.nvim_create_namespace("slides_view_padding")
+M.footer_ns = vim.api.nvim_create_namespace("slides_view_footer")
+pcall(vim.api.nvim_set_hl, 0, "SlidesFooter", { default = true, link = "Comment" })
 
 --- Configure default buffer options for the slide buffer
 --- @param buf integer
@@ -68,6 +70,7 @@ function M.format_slide_lines(raw_lines, win, config)
   raw_lines = raw_lines or { "" }
   local options = (config and config.options) or {}
   local vert_align = options.vertical_align or "center"
+  local show_footer = options.show_footer ~= false
 
   -- Trim leading and trailing empty lines for accurate vertical centering calculation
   local trimmed_lines = vim.deepcopy(raw_lines)
@@ -83,7 +86,8 @@ function M.format_slide_lines(raw_lines, win, config)
   local top_pad = 0
   if vert_align == "center" then
     local content_h = #trimmed_lines
-    top_pad = math.max(0, math.floor((win_height - content_h) / 2))
+    local reserved = show_footer and 1 or 0
+    top_pad = math.max(0, math.floor((win_height - reserved - content_h) / 2))
   end
 
   local final_lines = {}
@@ -94,11 +98,64 @@ function M.format_slide_lines(raw_lines, win, config)
     table.insert(final_lines, line)
   end
 
+  -- Pad down to window bottom so the footer line rests at the bottom of the window
+  if show_footer and win_height > #final_lines then
+    while #final_lines < win_height do
+      table.insert(final_lines, "")
+    end
+  end
+
   if #final_lines == 0 then
     final_lines = { "" }
   end
 
   return final_lines, top_pad, trimmed_lines
+end
+
+--- Apply footer indicator (e.g. "1/12") at the bottom of the slide view
+--- @param buf integer Buffer handle
+--- @param win integer Window handle
+--- @param state table Presentation state
+--- @param config table Plugin configuration
+function M.apply_footer_indicator(buf, win, state, config)
+  if not buf or not vim.api.nvim_buf_is_valid(buf) then
+    return
+  end
+
+  vim.api.nvim_buf_clear_namespace(buf, M.footer_ns, 0, -1)
+
+  local options = (config and config.options) or {}
+  if options.show_footer == false then
+    return
+  end
+
+  local status_text = string.format("%d/%d", state.current_slide or 1, (state.slides and #state.slides) or 1)
+  local footer_align = options.footer_align or "left"
+
+  local line_count = vim.api.nvim_buf_line_count(buf)
+  local target_row = line_count - 1
+
+  if footer_align == "right" then
+    pcall(vim.api.nvim_buf_set_extmark, buf, M.footer_ns, target_row, 0, {
+      virt_text = { { status_text .. " ", "SlidesFooter" } },
+      virt_text_pos = "right_align",
+      hl_mode = "combine",
+    })
+  elseif footer_align == "left" then
+    pcall(vim.api.nvim_buf_set_extmark, buf, M.footer_ns, target_row, 0, {
+      virt_text = { { " " .. status_text, "SlidesFooter" } },
+      virt_text_pos = "inline",
+      hl_mode = "combine",
+    })
+  elseif footer_align == "center" then
+    local win_width = (win and vim.api.nvim_win_is_valid(win)) and vim.api.nvim_win_get_width(win) or 80
+    local pad = math.max(0, math.floor((win_width - #status_text) / 2))
+    pcall(vim.api.nvim_buf_set_extmark, buf, M.footer_ns, target_row, 0, {
+      virt_text = { { string.rep(" ", pad) .. status_text, "SlidesFooter" } },
+      virt_text_pos = "eol",
+      hl_mode = "combine",
+    })
+  end
 end
 
 --- Apply horizontal centering via inline virtual text extmarks.
@@ -262,6 +319,9 @@ function M.set_slide_content(state, slide_idx, config)
 
   -- Apply horizontal centering without altering line text tokens
   M.apply_horizontal_padding(state.slide_buf, state.slide_win, top_pad, trimmed_lines, config)
+
+  -- Apply footer indicator at the bottom of the slide (e.g. 1/12)
+  M.apply_footer_indicator(state.slide_buf, state.slide_win, state, config)
 
   -- Ensure syntax and treesitter highlighting are active
   if state.filetype and state.filetype ~= "" then

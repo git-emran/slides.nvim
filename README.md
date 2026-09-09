@@ -89,8 +89,12 @@ require("slides").setup({
     mode = "tab",
     -- Wrap lines in slide window
     wrap = true,
-    -- Display slide index in statusline (e.g. "Slides: 1/5")
-    show_statusline = true,
+    -- Show slide indicator in the window statusline bar (off by default, footer is used instead)
+    show_statusline = false,
+    -- Display slide counter indicator at the bottom-left of the slide (e.g. "1/12")
+    show_footer = true,
+    -- Footer alignment: "left" (default), "right", or "center"
+    footer_align = "left",
     -- Vertical alignment: "center" (default) or "top"
     vertical_align = "center",
     -- Horizontal alignment: "left" (default), "center" (block-centered), or "line" (each line centered)

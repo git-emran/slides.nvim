@@ -21,7 +21,7 @@ T.describe("slides.view", function()
 
     -- Test center alignment
     local centered, top_pad, trimmed = view.format_slide_lines(raw, win, {
-      options = { vertical_align = "center", horizontal_align = "center" },
+      options = { vertical_align = "center", horizontal_align = "center", show_footer = false },
     })
     T.assert_true(#centered > #raw, "Expected vertical top padding")
     T.assert_true(top_pad > 0, "Expected top padding offset")
@@ -39,12 +39,35 @@ T.describe("slides.view", function()
     T.assert_true(#marks > 0, "Expected horizontal virtual padding extmarks")
     vim.api.nvim_buf_delete(buf, { force = true })
 
-    -- Test top/left alignment
+    -- Test top/left alignment without footer padding
     local uncentered, uncentered_top = view.format_slide_lines(raw, win, {
-      options = { vertical_align = "top", horizontal_align = "left" },
+      options = { vertical_align = "top", horizontal_align = "left", show_footer = false },
     })
     T.assert_equal(uncentered_top, 0)
     T.assert_deep_equal(uncentered, raw)
+  end)
+
+  T.it("renders footer indicator at the bottom of the slide", function()
+    local win = vim.api.nvim_get_current_win()
+    local state = {
+      filetype = "markdown",
+      slides = { { "# Slide 1" }, { "# Slide 2" }, { "# Slide 3" } },
+      current_slide = 1,
+    }
+    local config = {
+      options = { show_footer = true, footer_align = "right" },
+    }
+    local buf = vim.api.nvim_create_buf(false, true)
+    state.slide_buf = buf
+    state.slide_win = win
+
+    view.set_slide_content(state, 1, config)
+    local marks = vim.api.nvim_buf_get_extmarks(buf, view.footer_ns, 0, -1, { details = true })
+    T.assert_true(#marks > 0, "Expected footer extmark")
+    local mark_text = marks[1][4].virt_text[1][1]
+    T.assert_true(mark_text:match("1/3") ~= nil, "Expected footer to contain '1/3'")
+
+    vim.api.nvim_buf_delete(buf, { force = true })
   end)
 
   T.it("creates and destroys view in tab mode cleanly", function()
@@ -66,6 +89,7 @@ T.describe("slides.view", function()
         mode = "tab",
         wrap = true,
         show_statusline = false,
+        show_footer = false,
         vertical_align = "top",
         horizontal_align = "left",
       },
@@ -109,7 +133,7 @@ T.describe("slides.view", function()
     }
 
     local config = {
-      options = { mode = "buffer", wrap = true, show_statusline = false },
+      options = { mode = "buffer", wrap = true, show_statusline = false, show_footer = false },
       keymaps = {},
     }
 

@@ -12,12 +12,16 @@ Slides.config = {
     mode = "tab",
     -- Wrap long lines in slide window
     wrap = true,
-    -- Show slide status indicator in statusline
-    show_statusline = true,
+    -- Show slide status indicator in the window statusline bar (disabled by default to avoid duplicate with footer)
+    show_statusline = false,
     -- Vertical alignment: "center" (default) or "top"
     vertical_align = "center",
     -- Horizontal alignment: "left" (default), "center" (block-centered), or "line" (each line centered)
     horizontal_align = "left",
+    -- Show slide indicator at the bottom of the slide (e.g. "1/12")
+    show_footer = true,
+    -- Footer alignment: "left" (default), "right", or "center"
+    footer_align = "left",
   },
   separator = {
     markdown = "^#+ ",
@@ -101,7 +105,7 @@ function Slides._statusline()
   if not Slides.is_presenting() then
     return ""
   end
-  return string.format("  Slides: %s ", Slides.status())
+  return string.format("%%#SlidesFooter#%%= %s ", Slides.status())
 end
 
 --- Start presentation for the current buffer
