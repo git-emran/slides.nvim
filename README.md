@@ -4,6 +4,8 @@ A lightweight, distraction-free presentation plugin for Neovim that turns your m
 
 Inspired by [presenting.nvim](https://github.com/sotte/presenting.nvim), but built to present slides cleanly in their own tab/buffer without awkward floating overlays or horizontal pane splits.
 
+<img width="2244" height="1516" alt="Slides-nvim" src="https://github.com/user-attachments/assets/c434dd78-3126-4b51-8e53-c0b86d83df98" />
+
 ---
 
 ## ✨ Features
