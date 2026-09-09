@@ -62,16 +62,6 @@ vim.pack.add({
 }
 ```
 
-### [packer.nvim](https://github.com/wbthomason/packer.nvim)
-```lua
-use({
-  "git-emran/slides.nvim",
-  config = function()
-    require("slides").setup()
-  end,
-})
-```
-
 ### Manual Package Installation ([`:help packages`](https://neovim.io/doc/user/pack/#packages))
 
 Clone into your Neovim pack directory (`~/.local/share/nvim/site/pack/...`):
@@ -84,7 +74,7 @@ git clone https://github.com/git-emran/slides.nvim ~/.local/share/nvim/site/pack
 git clone https://github.com/git-emran/slides.nvim ~/.local/share/nvim/site/pack/plugins/opt/slides.nvim
 ```
 
-If placed in `opt/`, load it in your `init.lua` with `vim.cmd("packadd slides.nvim")` before calling `require("slides").setup()`.
+If placed in `opt/`, load it in your `init.lua` with `vim.cmd("packadd slides.nvim")` and call `require("slides").setup()`.
 
 ---
 
