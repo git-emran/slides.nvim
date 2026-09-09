@@ -41,15 +41,25 @@ T.describe("slides (core & integration)", function()
     T.assert_equal(Slides.status(), "1/3")
 
     -- Check slide 1 content in slide buffer
+    T.assert_deep_equal(Slides._state.slides[1], { "# First Slide", "Line 1" })
     local lines1 = vim.api.nvim_buf_get_lines(Slides._state.slide_buf, 0, -1, false)
-    T.assert_deep_equal(lines1, { "# First Slide", "Line 1" })
+    local has_title = false
+    for _, l in ipairs(lines1) do
+      if l:match("# First Slide") then has_title = true end
+    end
+    T.assert_true(has_title, "Expected rendered lines to contain '# First Slide'")
 
     -- Navigate next
     Slides.next()
     T.assert_equal(Slides.current_slide(), 2)
     T.assert_equal(Slides.status(), "2/3")
+    T.assert_deep_equal(Slides._state.slides[2], { "# Second Slide", "Line 2" })
     local lines2 = vim.api.nvim_buf_get_lines(Slides._state.slide_buf, 0, -1, false)
-    T.assert_deep_equal(lines2, { "# Second Slide", "Line 2" })
+    local has_slide2 = false
+    for _, l in ipairs(lines2) do
+      if l:match("# Second Slide") then has_slide2 = true end
+    end
+    T.assert_true(has_slide2, "Expected rendered lines to contain '# Second Slide'")
 
     -- Navigate next to last
     Slides.next()

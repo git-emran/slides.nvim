@@ -54,6 +54,85 @@ function M.setup_keymaps(buf, keymaps)
   end
 end
 
+--- Format slide lines with vertical and horizontal centering according to configuration
+--- @param raw_lines table List of slide lines
+--- @param win integer Window handle
+--- @param config table Plugin configuration
+--- @return table formatted_lines, integer first_content_line
+function M.format_slide_lines(raw_lines, win, config)
+  raw_lines = raw_lines or { "" }
+  local options = (config and config.options) or {}
+  local vert_align = options.vertical_align or "center"
+  local horiz_align = options.horizontal_align or "center"
+
+  -- Trim leading and trailing empty lines for accurate vertical centering calculation
+  local lines = vim.deepcopy(raw_lines)
+  while #lines > 1 and lines[1]:match("^%s*$") do
+    table.remove(lines, 1)
+  end
+  while #lines > 1 and lines[#lines]:match("^%s*$") do
+    table.remove(lines, #lines)
+  end
+
+  local win_height = (win and vim.api.nvim_win_is_valid(win)) and vim.api.nvim_win_get_height(win) or 24
+  local win_width = (win and vim.api.nvim_win_is_valid(win)) and vim.api.nvim_win_get_width(win) or 80
+
+  -- Horizontal centering
+  local formatted_content = {}
+  if horiz_align == "center" then
+    -- Block centering: centers the entire block while preserving indentation and code layout
+    local max_w = 0
+    for _, line in ipairs(lines) do
+      max_w = math.max(max_w, vim.fn.strdisplaywidth(line))
+    end
+    local left_pad = math.max(0, math.floor((win_width - max_w) / 2))
+    local pad_str = string.rep(" ", left_pad)
+    for _, line in ipairs(lines) do
+      if line:match("^%s*$") then
+        table.insert(formatted_content, "")
+      else
+        table.insert(formatted_content, pad_str .. line)
+      end
+    end
+  elseif horiz_align == "line" then
+    -- Line-by-line centering
+    for _, line in ipairs(lines) do
+      if line:match("^%s*$") then
+        table.insert(formatted_content, "")
+      else
+        local line_w = vim.fn.strdisplaywidth(line)
+        local left_pad = math.max(0, math.floor((win_width - line_w) / 2))
+        table.insert(formatted_content, string.rep(" ", left_pad) .. line)
+      end
+    end
+  else
+    -- Left aligned (no padding)
+    formatted_content = lines
+  end
+
+  -- Vertical centering
+  local final_lines = {}
+  local first_content_line = 1
+  if vert_align == "center" then
+    local content_h = #formatted_content
+    local top_pad = math.max(0, math.floor((win_height - content_h) / 2))
+    for _ = 1, top_pad do
+      table.insert(final_lines, "")
+    end
+    first_content_line = top_pad + 1
+  end
+
+  for _, line in ipairs(formatted_content) do
+    table.insert(final_lines, line)
+  end
+
+  if #final_lines == 0 then
+    final_lines = { "" }
+  end
+
+  return final_lines, first_content_line
+end
+
 --- Create the presentation view according to config (tab or buffer mode)
 --- @param state table Presentation state
 --- @param config table Plugin configuration
@@ -112,27 +191,40 @@ function M.create_view(state, config, on_cleanup)
     end,
   })
 
+  -- Window resize autocmd to maintain centering on resize
+  vim.api.nvim_create_autocmd({ "VimResized", "WinResized" }, {
+    group = augroup,
+    callback = function()
+      if state and state.current_slide and state.slide_buf and vim.api.nvim_buf_is_valid(state.slide_buf) then
+        M.set_slide_content(state, state.current_slide, config)
+      end
+    end,
+  })
+
   return true
 end
 
 --- Update slide buffer lines with current slide content
 --- @param state table Presentation state
 --- @param slide_idx integer Slide index to display
-function M.set_slide_content(state, slide_idx)
+--- @param config table|nil Plugin configuration
+function M.set_slide_content(state, slide_idx, config)
   if not state or not state.slide_buf or not vim.api.nvim_buf_is_valid(state.slide_buf) then
     return false
   end
 
-  local lines = state.slides[slide_idx] or { "" }
+  local raw_lines = state.slides[slide_idx] or { "" }
   state.current_slide = slide_idx
 
+  local formatted_lines, first_line = M.format_slide_lines(raw_lines, state.slide_win, config)
+
   vim.bo[state.slide_buf].modifiable = true
-  vim.api.nvim_buf_set_lines(state.slide_buf, 0, -1, false, lines)
+  vim.api.nvim_buf_set_lines(state.slide_buf, 0, -1, false, formatted_lines)
   vim.bo[state.slide_buf].modifiable = false
 
-  -- Reset cursor to top of slide
+  -- Reset cursor to first line of slide content
   if state.slide_win and vim.api.nvim_win_is_valid(state.slide_win) then
-    pcall(vim.api.nvim_win_set_cursor, state.slide_win, { 1, 0 })
+    pcall(vim.api.nvim_win_set_cursor, state.slide_win, { math.max(1, first_line or 1), 0 })
   end
 
   return true

@@ -13,6 +13,10 @@ Slides.config = {
     wrap = true,
     -- Show slide status indicator in statusline
     show_statusline = true,
+    -- Vertical alignment: "center" (default) or "top"
+    vertical_align = "center",
+    -- Horizontal alignment: "center" (block-centered, default), "line" (each line centered), or "left"
+    horizontal_align = "center",
   },
   separator = {
     markdown = "^#+ ",
@@ -146,7 +150,7 @@ function Slides.start(separator)
       -- Automatically clean up state if buffer is closed/wiped externally
       Slides._state = nil
     end)
-    view.set_slide_content(Slides._state, 1)
+    view.set_slide_content(Slides._state, 1, Slides.config)
   end)
 
   if not ok then
@@ -187,7 +191,7 @@ function Slides.next()
 
   local next_idx = math.min(Slides._state.current_slide + 1, #Slides._state.slides)
   if next_idx ~= Slides._state.current_slide then
-    view.set_slide_content(Slides._state, next_idx)
+    view.set_slide_content(Slides._state, next_idx, Slides.config)
   end
 end
 
@@ -200,7 +204,7 @@ function Slides.prev()
 
   local prev_idx = math.max(Slides._state.current_slide - 1, 1)
   if prev_idx ~= Slides._state.current_slide then
-    view.set_slide_content(Slides._state, prev_idx)
+    view.set_slide_content(Slides._state, prev_idx, Slides.config)
   end
 end
 
@@ -212,7 +216,7 @@ function Slides.first()
   end
 
   if Slides._state.current_slide ~= 1 then
-    view.set_slide_content(Slides._state, 1)
+    view.set_slide_content(Slides._state, 1, Slides.config)
   end
 end
 
@@ -225,7 +229,7 @@ function Slides.last()
 
   local last_idx = #Slides._state.slides
   if Slides._state.current_slide ~= last_idx then
-    view.set_slide_content(Slides._state, last_idx)
+    view.set_slide_content(Slides._state, last_idx, Slides.config)
   end
 end
 

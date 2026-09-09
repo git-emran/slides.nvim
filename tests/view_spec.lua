@@ -15,6 +15,26 @@ T.describe("slides.view", function()
     vim.api.nvim_buf_delete(buf, { force = true })
   end)
 
+  T.it("formats slide lines with vertical and horizontal centering", function()
+    local win = vim.api.nvim_get_current_win()
+    local raw = { "# Title", "Paragraph text" }
+
+    -- Test center alignment
+    local centered, first_line = view.format_slide_lines(raw, win, {
+      options = { vertical_align = "center", horizontal_align = "center" },
+    })
+    T.assert_true(#centered > #raw, "Expected vertical top padding")
+    T.assert_true(first_line > 1, "Expected first content line to be after top padding")
+    T.assert_true(centered[first_line]:match("^%s+# Title$") ~= nil, "Expected horizontal padding on title")
+
+    -- Test top/left alignment
+    local uncentered, uncentered_first = view.format_slide_lines(raw, win, {
+      options = { vertical_align = "top", horizontal_align = "left" },
+    })
+    T.assert_equal(uncentered_first, 1)
+    T.assert_deep_equal(uncentered, raw)
+  end)
+
   T.it("creates and destroys view in tab mode cleanly", function()
     local orig_tab_count = #vim.api.nvim_list_tabpages()
     local orig_tab = vim.api.nvim_get_current_tabpage()
@@ -30,7 +50,13 @@ T.describe("slides.view", function()
     }
 
     local config = {
-      options = { mode = "tab", wrap = true, show_statusline = false },
+      options = {
+        mode = "tab",
+        wrap = true,
+        show_statusline = false,
+        vertical_align = "top",
+        horizontal_align = "left",
+      },
       keymaps = {},
     }
 
@@ -44,7 +70,7 @@ T.describe("slides.view", function()
     T.assert_not_nil(state.slide_buf)
     T.assert_not_nil(state.slide_win)
 
-    view.set_slide_content(state, 1)
+    view.set_slide_content(state, 1, config)
     local lines = vim.api.nvim_buf_get_lines(state.slide_buf, 0, -1, false)
     T.assert_deep_equal(lines, { "# Slide 1", "Content 1" })
 

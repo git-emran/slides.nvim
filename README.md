@@ -91,6 +91,10 @@ require("slides").setup({
     wrap = true,
     -- Display slide index in statusline (e.g. "Slides: 1/5")
     show_statusline = true,
+    -- Vertical alignment: "center" (default) or "top"
+    vertical_align = "center",
+    -- Horizontal alignment: "center" (block-centered, default), "line" (each line centered), or "left"
+    horizontal_align = "center",
   },
   separator = {
     markdown = "^#+ ",
