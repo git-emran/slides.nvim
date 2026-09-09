@@ -1,5 +1,7 @@
 local M = {}
 
+M.ns_id = vim.api.nvim_create_namespace("slides_view_padding")
+
 --- Configure default buffer options for the slide buffer
 --- @param buf integer
 --- @param filetype string
@@ -13,6 +15,8 @@ function M.default_configure_buffer(buf, filetype)
   vim.bo[buf].modifiable = false
   if filetype and filetype ~= "" then
     vim.bo[buf].filetype = filetype
+    vim.bo[buf].syntax = filetype
+    pcall(vim.treesitter.start, buf, filetype)
   end
 end
 
@@ -54,75 +58,39 @@ function M.setup_keymaps(buf, keymaps)
   end
 end
 
---- Format slide lines with vertical and horizontal centering according to configuration
+--- Format slide lines for vertical centering without mutating leading line tokens
+--- (preserving markdown syntax so lines aren't misidentified as indented code blocks)
 --- @param raw_lines table List of slide lines
 --- @param win integer Window handle
 --- @param config table Plugin configuration
---- @return table formatted_lines, integer first_content_line
+--- @return table final_lines, integer top_pad, table trimmed_lines
 function M.format_slide_lines(raw_lines, win, config)
   raw_lines = raw_lines or { "" }
   local options = (config and config.options) or {}
   local vert_align = options.vertical_align or "center"
-  local horiz_align = options.horizontal_align or "center"
 
   -- Trim leading and trailing empty lines for accurate vertical centering calculation
-  local lines = vim.deepcopy(raw_lines)
-  while #lines > 1 and lines[1]:match("^%s*$") do
-    table.remove(lines, 1)
+  local trimmed_lines = vim.deepcopy(raw_lines)
+  while #trimmed_lines > 1 and trimmed_lines[1]:match("^%s*$") do
+    table.remove(trimmed_lines, 1)
   end
-  while #lines > 1 and lines[#lines]:match("^%s*$") do
-    table.remove(lines, #lines)
+  while #trimmed_lines > 1 and trimmed_lines[#trimmed_lines]:match("^%s*$") do
+    table.remove(trimmed_lines, #trimmed_lines)
   end
 
   local win_height = (win and vim.api.nvim_win_is_valid(win)) and vim.api.nvim_win_get_height(win) or 24
-  local win_width = (win and vim.api.nvim_win_is_valid(win)) and vim.api.nvim_win_get_width(win) or 80
 
-  -- Horizontal centering
-  local formatted_content = {}
-  if horiz_align == "center" then
-    -- Block centering: centers the entire block while preserving indentation and code layout
-    local max_w = 0
-    for _, line in ipairs(lines) do
-      max_w = math.max(max_w, vim.fn.strdisplaywidth(line))
-    end
-    local left_pad = math.max(0, math.floor((win_width - max_w) / 2))
-    local pad_str = string.rep(" ", left_pad)
-    for _, line in ipairs(lines) do
-      if line:match("^%s*$") then
-        table.insert(formatted_content, "")
-      else
-        table.insert(formatted_content, pad_str .. line)
-      end
-    end
-  elseif horiz_align == "line" then
-    -- Line-by-line centering
-    for _, line in ipairs(lines) do
-      if line:match("^%s*$") then
-        table.insert(formatted_content, "")
-      else
-        local line_w = vim.fn.strdisplaywidth(line)
-        local left_pad = math.max(0, math.floor((win_width - line_w) / 2))
-        table.insert(formatted_content, string.rep(" ", left_pad) .. line)
-      end
-    end
-  else
-    -- Left aligned (no padding)
-    formatted_content = lines
-  end
-
-  -- Vertical centering
-  local final_lines = {}
-  local first_content_line = 1
+  local top_pad = 0
   if vert_align == "center" then
-    local content_h = #formatted_content
-    local top_pad = math.max(0, math.floor((win_height - content_h) / 2))
-    for _ = 1, top_pad do
-      table.insert(final_lines, "")
-    end
-    first_content_line = top_pad + 1
+    local content_h = #trimmed_lines
+    top_pad = math.max(0, math.floor((win_height - content_h) / 2))
   end
 
-  for _, line in ipairs(formatted_content) do
+  local final_lines = {}
+  for _ = 1, top_pad do
+    table.insert(final_lines, "")
+  end
+  for _, line in ipairs(trimmed_lines) do
     table.insert(final_lines, line)
   end
 
@@ -130,7 +98,69 @@ function M.format_slide_lines(raw_lines, win, config)
     final_lines = { "" }
   end
 
-  return final_lines, first_content_line
+  return final_lines, top_pad, trimmed_lines
+end
+
+--- Apply horizontal centering via inline virtual text extmarks.
+--- This visually centers lines without prepending spaces into the actual text buffer,
+--- allowing Markdown, Treesitter, and colorschemes to highlight headings and text accurately.
+--- @param buf integer Buffer handle
+--- @param win integer Window handle
+--- @param top_pad integer Top padding offset lines
+--- @param trimmed_lines table Unpadded slide content lines
+--- @param config table Plugin configuration
+function M.apply_horizontal_padding(buf, win, top_pad, trimmed_lines, config)
+  if not buf or not vim.api.nvim_buf_is_valid(buf) then
+    return
+  end
+
+  vim.api.nvim_buf_clear_namespace(buf, M.ns_id, 0, -1)
+
+  local options = (config and config.options) or {}
+  local horiz_align = options.horizontal_align or "left"
+  if horiz_align == "left" then
+    return
+  end
+
+  local win_width = (win and vim.api.nvim_win_is_valid(win)) and vim.api.nvim_win_get_width(win) or 80
+
+  if horiz_align == "center" then
+    -- Block centering: centers the entire slide block while preserving internal indentations
+    local max_w = 0
+    for _, line in ipairs(trimmed_lines) do
+      max_w = math.max(max_w, vim.fn.strdisplaywidth(line))
+    end
+    local left_pad = math.max(0, math.floor((win_width - max_w) / 2))
+    if left_pad > 0 then
+      local pad_str = string.rep(" ", left_pad)
+      for i, line in ipairs(trimmed_lines) do
+        if not line:match("^%s*$") then
+          local row = top_pad + i - 1
+          pcall(vim.api.nvim_buf_set_extmark, buf, M.ns_id, row, 0, {
+            virt_text = { { pad_str, "Normal" } },
+            virt_text_pos = "inline",
+            hl_mode = "combine",
+          })
+        end
+      end
+    end
+  elseif horiz_align == "line" then
+    -- Line-by-line centering
+    for i, line in ipairs(trimmed_lines) do
+      if not line:match("^%s*$") then
+        local line_w = vim.fn.strdisplaywidth(line)
+        local left_pad = math.max(0, math.floor((win_width - line_w) / 2))
+        if left_pad > 0 then
+          local row = top_pad + i - 1
+          pcall(vim.api.nvim_buf_set_extmark, buf, M.ns_id, row, 0, {
+            virt_text = { { string.rep(" ", left_pad), "Normal" } },
+            virt_text_pos = "inline",
+            hl_mode = "combine",
+          })
+        end
+      end
+    end
+  end
 end
 
 --- Create the presentation view according to config (tab or buffer mode)
@@ -145,9 +175,17 @@ function M.create_view(state, config, on_cleanup)
   state.source_win = vim.api.nvim_get_current_win()
   state.source_buf = vim.api.nvim_get_current_buf()
 
+  -- Determine file extension based on filetype so syntax and plugins attach properly
+  local ext = "md"
+  if state.filetype == "org" then
+    ext = "org"
+  elseif state.filetype == "adoc" or state.filetype == "asciidoctor" then
+    ext = "adoc"
+  end
+
   -- Create dedicated slide buffer
   local slide_buf = vim.api.nvim_create_buf(false, true)
-  pcall(vim.api.nvim_buf_set_name, slide_buf, "slides://presentation")
+  pcall(vim.api.nvim_buf_set_name, slide_buf, "slides://presentation." .. ext)
 
   M.default_configure_buffer(slide_buf, state.filetype)
 
@@ -216,15 +254,26 @@ function M.set_slide_content(state, slide_idx, config)
   local raw_lines = state.slides[slide_idx] or { "" }
   state.current_slide = slide_idx
 
-  local formatted_lines, first_line = M.format_slide_lines(raw_lines, state.slide_win, config)
+  local final_lines, top_pad, trimmed_lines = M.format_slide_lines(raw_lines, state.slide_win, config)
 
   vim.bo[state.slide_buf].modifiable = true
-  vim.api.nvim_buf_set_lines(state.slide_buf, 0, -1, false, formatted_lines)
+  vim.api.nvim_buf_set_lines(state.slide_buf, 0, -1, false, final_lines)
   vim.bo[state.slide_buf].modifiable = false
+
+  -- Apply horizontal centering without altering line text tokens
+  M.apply_horizontal_padding(state.slide_buf, state.slide_win, top_pad, trimmed_lines, config)
+
+  -- Ensure syntax and treesitter highlighting are active
+  if state.filetype and state.filetype ~= "" then
+    if vim.bo[state.slide_buf].syntax ~= state.filetype then
+      vim.bo[state.slide_buf].syntax = state.filetype
+    end
+    pcall(vim.treesitter.start, state.slide_buf, state.filetype)
+  end
 
   -- Reset cursor to first line of slide content
   if state.slide_win and vim.api.nvim_win_is_valid(state.slide_win) then
-    pcall(vim.api.nvim_win_set_cursor, state.slide_win, { math.max(1, first_line or 1), 0 })
+    pcall(vim.api.nvim_win_set_cursor, state.slide_win, { math.max(1, top_pad + 1), 0 })
   end
 
   return true

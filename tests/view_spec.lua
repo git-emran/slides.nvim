@@ -15,23 +15,35 @@ T.describe("slides.view", function()
     vim.api.nvim_buf_delete(buf, { force = true })
   end)
 
-  T.it("formats slide lines with vertical and horizontal centering", function()
+  T.it("formats slide lines with vertical centering and applies horizontal extmark padding", function()
     local win = vim.api.nvim_get_current_win()
     local raw = { "# Title", "Paragraph text" }
 
     -- Test center alignment
-    local centered, first_line = view.format_slide_lines(raw, win, {
+    local centered, top_pad, trimmed = view.format_slide_lines(raw, win, {
       options = { vertical_align = "center", horizontal_align = "center" },
     })
     T.assert_true(#centered > #raw, "Expected vertical top padding")
-    T.assert_true(first_line > 1, "Expected first content line to be after top padding")
-    T.assert_true(centered[first_line]:match("^%s+# Title$") ~= nil, "Expected horizontal padding on title")
+    T.assert_true(top_pad > 0, "Expected top padding offset")
+    -- Ensure raw markdown tokens are preserved without leading spaces
+    T.assert_equal(centered[top_pad + 1], "# Title")
+
+    -- Test extmark horizontal padding
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, centered)
+    view.apply_horizontal_padding(buf, win, top_pad, trimmed, {
+      options = { horizontal_align = "center" },
+    })
+
+    local marks = vim.api.nvim_buf_get_extmarks(buf, view.ns_id, 0, -1, { details = true })
+    T.assert_true(#marks > 0, "Expected horizontal virtual padding extmarks")
+    vim.api.nvim_buf_delete(buf, { force = true })
 
     -- Test top/left alignment
-    local uncentered, uncentered_first = view.format_slide_lines(raw, win, {
+    local uncentered, uncentered_top = view.format_slide_lines(raw, win, {
       options = { vertical_align = "top", horizontal_align = "left" },
     })
-    T.assert_equal(uncentered_first, 1)
+    T.assert_equal(uncentered_top, 0)
     T.assert_deep_equal(uncentered, raw)
   end)
 

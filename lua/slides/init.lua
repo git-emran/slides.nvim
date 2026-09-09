@@ -3,6 +3,7 @@ local view = require("slides.view")
 
 local Slides = {}
 Slides._state = nil
+_G.Slides = Slides
 
 --- Default configuration
 Slides.config = {
@@ -15,8 +16,8 @@ Slides.config = {
     show_statusline = true,
     -- Vertical alignment: "center" (default) or "top"
     vertical_align = "center",
-    -- Horizontal alignment: "center" (block-centered, default), "line" (each line centered), or "left"
-    horizontal_align = "center",
+    -- Horizontal alignment: "left" (default), "center" (block-centered), or "line" (each line centered)
+    horizontal_align = "left",
   },
   separator = {
     markdown = "^#+ ",
