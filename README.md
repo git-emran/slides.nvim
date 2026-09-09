@@ -21,6 +21,34 @@ Inspired by [presenting.nvim](https://github.com/sotte/presenting.nvim), but bui
 
 Install with your favorite plugin manager:
 
+### Neovim Built-in (`vim.pack` — [Docs](https://neovim.io/doc/user/pack/#vim.pack-examples))
+
+Neovim's native package manager (`vim.pack`). Add to your `init.lua`:
+
+```lua
+vim.pack.add({
+  "https://github.com/git-emran/slides.nvim",
+})
+
+require("slides").setup({
+  options = {
+    mode = "tab", -- "tab" (default) or "buffer"
+  },
+})
+```
+
+You can also specify a git branch, tag, or version constraint:
+```lua
+vim.pack.add({
+  {
+    src = "https://github.com/git-emran/slides.nvim",
+    version = "main", -- or tag / version constraint like vim.version.range('1.0')
+  },
+})
+```
+
+- Run `:packupdate` to fetch and confirm updates.
+
 ### [lazy.nvim](https://github.com/folke/lazy.nvim)
 ```lua
 {
@@ -44,30 +72,19 @@ use({
 })
 ```
 
-### Neovim Packages ([`:help packages`](https://neovim.io/doc/user/repeat.html#packages))
+### Manual Package Installation ([`:help packages`](https://neovim.io/doc/user/pack/#packages))
 
-Clone into your Neovim pack directory (either in `site/pack/` or `nvim/pack/`):
+Clone into your Neovim pack directory (`~/.local/share/nvim/site/pack/...`):
 
 ```bash
-# Automatically loaded on startup ("start" packages):
+# Automatically loaded on startup ("start" package):
 git clone https://github.com/git-emran/slides.nvim ~/.local/share/nvim/site/pack/plugins/start/slides.nvim
 
-# Or loaded on-demand ("opt" packages via :packadd / vim.pack):
+# Or loaded on-demand ("opt" package):
 git clone https://github.com/git-emran/slides.nvim ~/.local/share/nvim/site/pack/plugins/opt/slides.nvim
 ```
 
-Then configure it in your `init.lua`:
-
-```lua
--- If installed in opt/, load it on demand:
--- vim.cmd("packadd slides.nvim") -- or vim.pack.add("slides.nvim") on Nvim 0.11+
-
-require("slides").setup({
-  options = {
-    mode = "tab",
-  },
-})
-```
+If placed in `opt/`, load it in your `init.lua` with `vim.cmd("packadd slides.nvim")` before calling `require("slides").setup()`.
 
 ---
 
