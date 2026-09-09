@@ -44,6 +44,31 @@ use({
 })
 ```
 
+### Neovim Packages ([`:help packages`](https://neovim.io/doc/user/repeat.html#packages))
+
+Clone into your Neovim pack directory (either in `site/pack/` or `nvim/pack/`):
+
+```bash
+# Automatically loaded on startup ("start" packages):
+git clone https://github.com/git-emran/slides.nvim ~/.local/share/nvim/site/pack/plugins/start/slides.nvim
+
+# Or loaded on-demand ("opt" packages via :packadd / vim.pack):
+git clone https://github.com/git-emran/slides.nvim ~/.local/share/nvim/site/pack/plugins/opt/slides.nvim
+```
+
+Then configure it in your `init.lua`:
+
+```lua
+-- If installed in opt/, load it on demand:
+-- vim.cmd("packadd slides.nvim") -- or vim.pack.add("slides.nvim") on Nvim 0.11+
+
+require("slides").setup({
+  options = {
+    mode = "tab",
+  },
+})
+```
+
 ---
 
 ## 🚀 Usage
