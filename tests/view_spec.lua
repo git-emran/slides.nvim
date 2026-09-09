@@ -145,4 +145,59 @@ T.describe("slides.view", function()
 
     vim.api.nvim_buf_delete(test_buf, { force = true })
   end)
+
+  T.it("formats long slide content as a scrollable view with scroll status indicators", function()
+    local win = vim.api.nvim_get_current_win()
+    -- Create 40 lines of text
+    local raw = {}
+    for i = 1, 40 do
+      table.insert(raw, string.format("Line %d of lots of text", i))
+    end
+
+    local config = {
+      options = { vertical_align = "center", show_footer = true, footer_align = "left" },
+    }
+
+    -- 1. Initial view at top (scroll_offset = 0)
+    local lines_top, top_pad, visible, status, offset, max_offset, is_scrollable =
+      view.format_slide_lines(raw, win, config, 0, "down")
+
+    T.assert_true(is_scrollable, "Expected long slide to be scrollable")
+    T.assert_equal(status, "Scroll down", "Expected 'Scroll down' at top of slide")
+    T.assert_equal(offset, 0)
+    T.assert_true(max_offset > 0, "Expected max_offset to be > 0")
+    T.assert_equal(visible[1], "Line 1 of lots of text")
+
+    -- 2. Scrolled down to end (scroll_offset = max_offset)
+    local lines_end, _, visible_end, status_end =
+      view.format_slide_lines(raw, win, config, max_offset, "down")
+
+    T.assert_equal(status_end, "End", "Expected 'End' status at bottom of slide")
+    T.assert_equal(visible_end[#visible_end], "Line 40 of lots of text")
+
+    -- 3. Scrolled up in the middle (scroll_offset = 5, last_scroll_dir = 'up')
+    local _, _, _, status_up =
+      view.format_slide_lines(raw, win, config, 5, "up")
+    T.assert_equal(status_up, "Scroll up", "Expected 'Scroll up' status when scrolling up in middle")
+
+    -- 4. Test footer rendering with scroll status
+    local state = {
+      filetype = "markdown",
+      slides = { raw },
+      current_slide = 1,
+      scroll_status = "Scroll down",
+    }
+    local buf = vim.api.nvim_create_buf(false, true)
+    state.slide_buf = buf
+    state.slide_win = win
+
+    view.set_slide_content(state, 1, config)
+    local marks = vim.api.nvim_buf_get_extmarks(buf, view.footer_ns, 0, -1, { details = true })
+    T.assert_true(#marks > 0, "Expected footer extmark")
+    local mark_text = marks[1][4].virt_text[1][1]
+    T.assert_true(mark_text:match("1/1") ~= nil, "Expected footer to contain '1/1'")
+    T.assert_true(mark_text:match("Scroll down") ~= nil, "Expected footer to contain 'Scroll down'")
+
+    vim.api.nvim_buf_delete(buf, { force = true })
+  end)
 end)

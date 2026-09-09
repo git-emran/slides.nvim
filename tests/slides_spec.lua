@@ -177,6 +177,8 @@ T.describe("slides (core & integration)", function()
     T.assert_true(mapped_keys["q"] == true, "Expected 'q' to be mapped")
     T.assert_true(mapped_keys["f"] == true, "Expected 'f' to be mapped")
     T.assert_true(mapped_keys["l"] == true, "Expected 'l' to be mapped")
+    T.assert_true(mapped_keys["j"] == true, "Expected 'j' to be mapped")
+    T.assert_true(mapped_keys["k"] == true, "Expected 'k' to be mapped")
 
     -- Trigger next via keymap callback
     Slides.config.keymaps["n"]()
@@ -198,6 +200,56 @@ T.describe("slides (core & integration)", function()
     Slides.config.keymaps["q"]()
     T.assert_false(Slides.is_presenting())
 
+    vim.api.nvim_buf_delete(buf, { force = true })
+  end)
+
+  T.it("supports scrolling operations on long slides and updates status", function()
+    local long_slide_lines = { "# Long Slide" }
+    for i = 1, 50 do
+      table.insert(long_slide_lines, string.format("Content line %d", i))
+    end
+
+    local buf = vim.api.nvim_create_buf(true, false)
+    vim.api.nvim_win_set_buf(0, buf)
+    vim.bo[buf].filetype = "markdown"
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, long_slide_lines)
+
+    Slides.start()
+    T.assert_true(Slides.is_presenting())
+    T.assert_true(Slides._state.is_scrollable)
+    T.assert_equal(Slides._state.scroll_offset, 0)
+    T.assert_equal(Slides._state.scroll_status, "Scroll down")
+    T.assert_true(Slides.status():match("Scroll down") ~= nil)
+
+    -- Scroll down step
+    Slides.scroll_down(3)
+    T.assert_equal(Slides._state.scroll_offset, 3)
+    T.assert_equal(Slides._state.scroll_status, "Scroll down")
+
+    -- Scroll to bottom
+    Slides.scroll_to_bottom()
+    T.assert_equal(Slides._state.scroll_offset, Slides._state.max_scroll_offset)
+    T.assert_equal(Slides._state.scroll_status, "End")
+    T.assert_true(Slides.status():match("End") ~= nil)
+
+    -- Scroll up
+    Slides.scroll_up(2)
+    T.assert_equal(Slides._state.scroll_status, "Scroll up")
+    T.assert_true(Slides.status():match("Scroll up") ~= nil)
+
+    -- Scroll to top
+    Slides.scroll_to_top()
+    T.assert_equal(Slides._state.scroll_offset, 0)
+    T.assert_equal(Slides._state.scroll_status, "Scroll down")
+
+    -- Test user command scroll
+    vim.cmd("Slides down")
+    T.assert_equal(Slides._state.scroll_offset, 1)
+
+    vim.cmd("Slides up")
+    T.assert_equal(Slides._state.scroll_offset, 0)
+
+    Slides.quit()
     vim.api.nvim_buf_delete(buf, { force = true })
   end)
 end)

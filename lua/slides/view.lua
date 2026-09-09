@@ -60,13 +60,15 @@ function M.setup_keymaps(buf, keymaps)
   end
 end
 
---- Format slide lines for vertical centering without mutating leading line tokens
+--- Format slide lines for vertical centering and scrolling without mutating leading line tokens
 --- (preserving markdown syntax so lines aren't misidentified as indented code blocks)
 --- @param raw_lines table List of slide lines
 --- @param win integer Window handle
 --- @param config table Plugin configuration
---- @return table final_lines, integer top_pad, table trimmed_lines
-function M.format_slide_lines(raw_lines, win, config)
+--- @param scroll_offset integer|nil Current scroll offset (0-indexed)
+--- @param last_scroll_dir string|nil "up" or "down"
+--- @return table final_lines, integer top_pad, table visible_lines, string scroll_status, integer scroll_offset, integer max_scroll_offset, boolean is_scrollable
+function M.format_slide_lines(raw_lines, win, config, scroll_offset, last_scroll_dir)
   raw_lines = raw_lines or { "" }
   local options = (config and config.options) or {}
   local vert_align = options.vertical_align or "center"
@@ -82,19 +84,68 @@ function M.format_slide_lines(raw_lines, win, config)
   end
 
   local win_height = (win and vim.api.nvim_win_is_valid(win)) and vim.api.nvim_win_get_height(win) or 24
+  local reserved = show_footer and 1 or 0
 
-  local top_pad = 0
+  -- Determine margin / padding so big texts don't fill up the entire screen (preserving UI layout)
+  local min_margin = 0
   if vert_align == "center" then
-    local content_h = #trimmed_lines
-    local reserved = show_footer and 1 or 0
-    top_pad = math.max(0, math.floor((win_height - reserved - content_h) / 2))
+    min_margin = math.max(2, math.floor(win_height * 0.08))
+  end
+
+  local viewport_h = math.max(1, win_height - reserved - 2 * min_margin)
+  if vert_align == "top" then
+    viewport_h = math.max(1, win_height - reserved - 1)
+  end
+
+  local total_lines = #trimmed_lines
+  local is_scrollable = total_lines > viewport_h
+  local top_pad = 0
+  local visible_lines = trimmed_lines
+  local max_scroll_offset = 0
+  local actual_scroll_offset = 0
+  local scroll_status = ""
+
+  if not is_scrollable then
+    if vert_align == "center" then
+      top_pad = math.max(0, math.floor((win_height - reserved - total_lines) / 2))
+    end
+    visible_lines = trimmed_lines
+  else
+    max_scroll_offset = total_lines - viewport_h
+    actual_scroll_offset = math.max(0, math.min(scroll_offset or 0, max_scroll_offset))
+
+    if vert_align == "center" then
+      top_pad = min_margin
+    else
+      top_pad = 0
+    end
+
+    visible_lines = {}
+    for i = actual_scroll_offset + 1, actual_scroll_offset + viewport_h do
+      table.insert(visible_lines, trimmed_lines[i])
+    end
+
+    local has_below = actual_scroll_offset < max_scroll_offset
+    local has_above = actual_scroll_offset > 0
+
+    if not has_below then
+      scroll_status = "End"
+    elseif not has_above then
+      scroll_status = "Scroll down"
+    else
+      if last_scroll_dir == "up" then
+        scroll_status = "Scroll up"
+      else
+        scroll_status = "Scroll down"
+      end
+    end
   end
 
   local final_lines = {}
   for _ = 1, top_pad do
     table.insert(final_lines, "")
   end
-  for _, line in ipairs(trimmed_lines) do
+  for _, line in ipairs(visible_lines) do
     table.insert(final_lines, line)
   end
 
@@ -109,10 +160,10 @@ function M.format_slide_lines(raw_lines, win, config)
     final_lines = { "" }
   end
 
-  return final_lines, top_pad, trimmed_lines
+  return final_lines, top_pad, visible_lines, scroll_status, actual_scroll_offset, max_scroll_offset, is_scrollable
 end
 
---- Apply footer indicator (e.g. "1/12") at the bottom of the slide view
+--- Apply footer indicator (e.g. "1/12  Scroll down") at the bottom of the slide view
 --- @param buf integer Buffer handle
 --- @param win integer Window handle
 --- @param state table Presentation state
@@ -129,7 +180,13 @@ function M.apply_footer_indicator(buf, win, state, config)
     return
   end
 
-  local status_text = string.format("%d/%d", state.current_slide or 1, (state.slides and #state.slides) or 1)
+  local base_text = string.format("%d/%d", state.current_slide or 1, (state.slides and #state.slides) or 1)
+  local scroll_status = state.scroll_status or ""
+  local status_text = base_text
+  if scroll_status ~= "" then
+    status_text = string.format("%s  %s", base_text, scroll_status)
+  end
+
   local footer_align = options.footer_align or "left"
 
   local line_count = vim.api.nvim_buf_line_count(buf)
@@ -303,24 +360,38 @@ end
 --- @param state table Presentation state
 --- @param slide_idx integer Slide index to display
 --- @param config table|nil Plugin configuration
-function M.set_slide_content(state, slide_idx, config)
+--- @param reset_scroll boolean|nil Whether to reset scroll position (defaults to true)
+function M.set_slide_content(state, slide_idx, config, reset_scroll)
   if not state or not state.slide_buf or not vim.api.nvim_buf_is_valid(state.slide_buf) then
     return false
+  end
+
+  if reset_scroll ~= false then
+    state.scroll_offset = 0
+    state.last_scroll_dir = "down"
   end
 
   local raw_lines = state.slides[slide_idx] or { "" }
   state.current_slide = slide_idx
 
-  local final_lines, top_pad, trimmed_lines = M.format_slide_lines(raw_lines, state.slide_win, config)
+  local final_lines, top_pad, visible_lines, scroll_status, actual_scroll_offset, max_scroll_offset, is_scrollable =
+    M.format_slide_lines(raw_lines, state.slide_win, config, state.scroll_offset, state.last_scroll_dir)
+
+  state.top_pad = top_pad
+  state.scroll_status = scroll_status
+  state.scroll_offset = actual_scroll_offset
+  state.max_scroll_offset = max_scroll_offset
+  state.is_scrollable = is_scrollable
+  state.viewport_h = #visible_lines
 
   vim.bo[state.slide_buf].modifiable = true
   vim.api.nvim_buf_set_lines(state.slide_buf, 0, -1, false, final_lines)
   vim.bo[state.slide_buf].modifiable = false
 
   -- Apply horizontal centering without altering line text tokens
-  M.apply_horizontal_padding(state.slide_buf, state.slide_win, top_pad, trimmed_lines, config)
+  M.apply_horizontal_padding(state.slide_buf, state.slide_win, top_pad, visible_lines, config)
 
-  -- Apply footer indicator at the bottom of the slide (e.g. 1/12)
+  -- Apply footer indicator at the bottom of the slide (e.g. 1/12  Scroll down)
   M.apply_footer_indicator(state.slide_buf, state.slide_win, state, config)
 
   -- Ensure syntax and treesitter highlighting are active
@@ -337,6 +408,13 @@ function M.set_slide_content(state, slide_idx, config)
   end
 
   return true
+end
+
+--- Re-render the current slide without resetting scroll position
+--- @param state table Presentation state
+--- @param config table|nil Plugin configuration
+function M.render_current_slide(state, config)
+  return M.set_slide_content(state, state.current_slide or 1, config, false)
 end
 
 --- Destroy presentation view and restore user's original context

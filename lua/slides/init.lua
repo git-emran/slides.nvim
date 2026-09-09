@@ -42,6 +42,20 @@ Slides.config = {
     ["l"] = function() Slides.last() end,
     ["<CR>"] = function() Slides.next() end,
     ["<BS>"] = function() Slides.prev() end,
+    ["j"] = function() Slides.scroll_down(1) end,
+    ["k"] = function() Slides.scroll_up(1) end,
+    ["<Down>"] = function() Slides.scroll_down(1) end,
+    ["<Up>"] = function() Slides.scroll_up(1) end,
+    ["<C-d>"] = function() Slides.scroll_down(5) end,
+    ["<C-u>"] = function() Slides.scroll_up(5) end,
+    ["<C-f>"] = function() Slides.scroll_page_down() end,
+    ["<C-b>"] = function() Slides.scroll_page_up() end,
+    ["<PageDown>"] = function() Slides.scroll_page_down() end,
+    ["<PageUp>"] = function() Slides.scroll_page_up() end,
+    ["d"] = function() Slides.scroll_down(5) end,
+    ["u"] = function() Slides.scroll_up(5) end,
+    ["gg"] = function() Slides.scroll_to_top() end,
+    ["G"] = function() Slides.scroll_to_bottom() end,
   },
   -- Optional user hook: function(buf) ... end
   configure_slide_buffer = nil,
@@ -90,13 +104,18 @@ function Slides.total_slides()
   return Slides._state and #Slides._state.slides or nil
 end
 
---- Return formatted slide status string e.g. "1/5"
+--- Return formatted slide status string e.g. "1/5" or "1/5  Scroll down"
 --- @return string
 function Slides.status()
   if not Slides.is_presenting() then
     return ""
   end
-  return string.format("%d/%d", Slides._state.current_slide, #Slides._state.slides)
+  local base = string.format("%d/%d", Slides._state.current_slide, #Slides._state.slides)
+  local scroll_status = Slides._state.scroll_status or ""
+  if scroll_status ~= "" then
+    return string.format("%s  %s", base, scroll_status)
+  end
+  return base
 end
 
 --- Statusline expression callback
@@ -238,6 +257,92 @@ function Slides.last()
   end
 end
 
+--- Scroll down within the current slide
+--- @param step integer|nil Lines to scroll down (default 1)
+function Slides.scroll_down(step)
+  if not Slides.is_presenting() then
+    return
+  end
+  step = step or 1
+  local state = Slides._state
+  if not state.is_scrollable then
+    return
+  end
+  if state.scroll_offset < state.max_scroll_offset then
+    state.scroll_offset = math.min(state.scroll_offset + step, state.max_scroll_offset)
+    state.last_scroll_dir = "down"
+    view.render_current_slide(state, Slides.config)
+  end
+end
+
+--- Scroll up within the current slide
+--- @param step integer|nil Lines to scroll up (default 1)
+function Slides.scroll_up(step)
+  if not Slides.is_presenting() then
+    return
+  end
+  step = step or 1
+  local state = Slides._state
+  if not state.is_scrollable then
+    return
+  end
+  if state.scroll_offset > 0 then
+    state.scroll_offset = math.max(state.scroll_offset - step, 0)
+    state.last_scroll_dir = "up"
+    view.render_current_slide(state, Slides.config)
+  end
+end
+
+--- Scroll down one page/screen within current slide
+function Slides.scroll_page_down()
+  if not Slides.is_presenting() then
+    return
+  end
+  local step = math.max(1, (Slides._state.viewport_h or 10) - 2)
+  Slides.scroll_down(step)
+end
+
+--- Scroll up one page/screen within current slide
+function Slides.scroll_page_up()
+  if not Slides.is_presenting() then
+    return
+  end
+  local step = math.max(1, (Slides._state.viewport_h or 10) - 2)
+  Slides.scroll_up(step)
+end
+
+--- Scroll to top of current slide
+function Slides.scroll_to_top()
+  if not Slides.is_presenting() then
+    return
+  end
+  local state = Slides._state
+  if not state.is_scrollable then
+    return
+  end
+  if state.scroll_offset > 0 then
+    state.scroll_offset = 0
+    state.last_scroll_dir = "up"
+    view.render_current_slide(state, Slides.config)
+  end
+end
+
+--- Scroll to bottom of current slide
+function Slides.scroll_to_bottom()
+  if not Slides.is_presenting() then
+    return
+  end
+  local state = Slides._state
+  if not state.is_scrollable then
+    return
+  end
+  if state.scroll_offset < state.max_scroll_offset then
+    state.scroll_offset = state.max_scroll_offset
+    state.last_scroll_dir = "down"
+    view.render_current_slide(state, Slides.config)
+  end
+end
+
 --- Register :Slides user command
 function Slides._register_command()
   pcall(vim.api.nvim_create_user_command, "Slides", function(opts)
@@ -255,6 +360,14 @@ function Slides._register_command()
       Slides.first()
     elseif arg == "last" then
       Slides.last()
+    elseif arg == "scroll_down" or arg == "down" then
+      Slides.scroll_down()
+    elseif arg == "scroll_up" or arg == "up" then
+      Slides.scroll_up()
+    elseif arg == "scroll_top" or arg == "top" then
+      Slides.scroll_to_top()
+    elseif arg == "scroll_bottom" or arg == "bottom" then
+      Slides.scroll_to_bottom()
     elseif arg == "toggle" then
       Slides.toggle()
     else
@@ -265,7 +378,18 @@ function Slides._register_command()
     nargs = "?",
     desc = "Control slides.nvim presentation",
     complete = function(arglead)
-      local subcommands = { "toggle", "next", "prev", "first", "last", "quit" }
+      local subcommands = {
+        "toggle",
+        "next",
+        "prev",
+        "first",
+        "last",
+        "quit",
+        "scroll_down",
+        "scroll_up",
+        "scroll_top",
+        "scroll_bottom",
+      }
       local matches = {}
       for _, cmd in ipairs(subcommands) do
         if vim.startswith(cmd, arglead) then

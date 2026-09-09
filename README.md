@@ -60,6 +60,14 @@ Open any Markdown, Org, or AsciiDoc document and run:
 |---|---|
 | `n` or `<CR>` | Next slide |
 | `p` or `<BS>` | Previous slide |
+| `j` or `<Down>` | Scroll down 1 line (when slide has lots of text) |
+| `k` or `<Up>` | Scroll up 1 line |
+| `<C-d>` or `d` | Scroll down half-screen |
+| `<C-u>` or `u` | Scroll up half-screen |
+| `<C-f>` or `<PageDown>` | Scroll down full screen |
+| `<C-b>` or `<PageUp>` | Scroll up full screen |
+| `gg` | Scroll to top of slide |
+| `G` | Scroll to bottom of slide |
 | `f` | First slide |
 | `l` | Last slide |
 | `q` | Quit presentation mode |
@@ -67,14 +75,26 @@ Open any Markdown, Org, or AsciiDoc document and run:
 ### Command Usage
 
 ```vim
-:Slides          " Toggle presentation mode
-:Slides next     " Jump to next slide
-:Slides prev     " Jump to previous slide
-:Slides first    " Jump to first slide
-:Slides last     " Jump to last slide
-:Slides quit     " Exit presentation
-:Slides ^---     " Present using custom separator
+:Slides               " Toggle presentation mode
+:Slides next          " Jump to next slide
+:Slides prev          " Jump to previous slide
+:Slides first         " Jump to first slide
+:Slides last          " Jump to last slide
+:Slides scroll_down   " Scroll down inside current slide (alias: :Slides down)
+:Slides scroll_up     " Scroll up inside current slide (alias: :Slides up)
+:Slides scroll_top    " Jump to top of current slide (alias: :Slides top)
+:Slides scroll_bottom " Jump to bottom of current slide (alias: :Slides bottom)
+:Slides quit          " Exit presentation
+:Slides ^---          " Present using custom separator
 ```
+
+### Scroll Status Indicator
+
+When slides contain lots of text, the presentation UI retains its padding and structure without overflowing the screen. The text area becomes scrollable, and a status label appears beside the slide counter in the footer:
+
+- **`Scroll down`**: Displayed when there is more slide content below the view.
+- **`Scroll up`**: Displayed when scrolling up and slide content remains above the view.
+- **`End`**: Displayed when you have reached the end of the slide content.
 
 ---
 
@@ -91,7 +111,7 @@ require("slides").setup({
     wrap = true,
     -- Show slide indicator in the window statusline bar (off by default, footer is used instead)
     show_statusline = false,
-    -- Display slide counter indicator at the bottom-left of the slide (e.g. "1/12")
+    -- Display slide counter indicator at the bottom-left of the slide (e.g. "1/12  Scroll down")
     show_footer = true,
     -- Footer alignment: "left" (default), "right", or "center"
     footer_align = "left",
@@ -119,6 +139,20 @@ require("slides").setup({
     ["l"] = function() Slides.last() end,
     ["<CR>"] = function() Slides.next() end,
     ["<BS>"] = function() Slides.prev() end,
+    ["j"] = function() Slides.scroll_down(1) end,
+    ["k"] = function() Slides.scroll_up(1) end,
+    ["<Down>"] = function() Slides.scroll_down(1) end,
+    ["<Up>"] = function() Slides.scroll_up(1) end,
+    ["<C-d>"] = function() Slides.scroll_down(5) end,
+    ["<C-u>"] = function() Slides.scroll_up(5) end,
+    ["<C-f>"] = function() Slides.scroll_page_down() end,
+    ["<C-b>"] = function() Slides.scroll_page_up() end,
+    ["<PageDown>"] = function() Slides.scroll_page_down() end,
+    ["<PageUp>"] = function() Slides.scroll_page_up() end,
+    ["d"] = function() Slides.scroll_down(5) end,
+    ["u"] = function() Slides.scroll_up(5) end,
+    ["gg"] = function() Slides.scroll_to_top() end,
+    ["G"] = function() Slides.scroll_to_bottom() end,
   },
   -- Custom hook to configure slide buffer
   configure_slide_buffer = nil,
