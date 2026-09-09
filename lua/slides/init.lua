@@ -271,7 +271,7 @@ function Slides.scroll_down(step)
   if state.scroll_offset < state.max_scroll_offset then
     state.scroll_offset = math.min(state.scroll_offset + step, state.max_scroll_offset)
     state.last_scroll_dir = "down"
-    view.render_current_slide(state, Slides.config)
+    view.scroll_slide(state, Slides.config)
   end
 end
 
@@ -289,7 +289,7 @@ function Slides.scroll_up(step)
   if state.scroll_offset > 0 then
     state.scroll_offset = math.max(state.scroll_offset - step, 0)
     state.last_scroll_dir = "up"
-    view.render_current_slide(state, Slides.config)
+    view.scroll_slide(state, Slides.config)
   end
 end
 
@@ -323,7 +323,7 @@ function Slides.scroll_to_top()
   if state.scroll_offset > 0 then
     state.scroll_offset = 0
     state.last_scroll_dir = "up"
-    view.render_current_slide(state, Slides.config)
+    view.scroll_slide(state, Slides.config)
   end
 end
 
@@ -339,7 +339,7 @@ function Slides.scroll_to_bottom()
   if state.scroll_offset < state.max_scroll_offset then
     state.scroll_offset = state.max_scroll_offset
     state.last_scroll_dir = "down"
-    view.render_current_slide(state, Slides.config)
+    view.scroll_slide(state, Slides.config)
   end
 end
 

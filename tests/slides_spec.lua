@@ -252,4 +252,49 @@ T.describe("slides (core & integration)", function()
     Slides.quit()
     vim.api.nvim_buf_delete(buf, { force = true })
   end)
+
+  T.it("preserves code block fences and lines intact during scrolling", function()
+    local slide_with_code = {
+      "# Configuration",
+      "Pass any overrides to setup:",
+      "```lua",
+      "require('slides').setup({",
+      "  options = {",
+      "    mode = 'tab',",
+      "    wrap = true,",
+      "  },",
+      "})",
+      "```",
+      "More markdown lines...",
+    }
+    for i = 1, 30 do
+      table.insert(slide_with_code, string.format("Extra line %d", i))
+    end
+
+    local buf = vim.api.nvim_create_buf(true, false)
+    vim.api.nvim_win_set_buf(0, buf)
+    vim.bo[buf].filetype = "markdown"
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, slide_with_code)
+
+    Slides.start()
+    T.assert_true(Slides.is_presenting())
+
+    local slide_buf = Slides._state.slide_buf
+    local lines_before = vim.api.nvim_buf_get_lines(slide_buf, 0, -1, false)
+
+    -- Scroll past the ```lua code fence
+    Slides.scroll_down(5)
+    local lines_after = vim.api.nvim_buf_get_lines(slide_buf, 0, -1, false)
+    T.assert_deep_equal(lines_before, lines_after)
+
+    -- Verify ```lua is still in the buffer
+    local has_code_fence = false
+    for _, l in ipairs(lines_after) do
+      if l:match("```lua") then has_code_fence = true end
+    end
+    T.assert_true(has_code_fence, "Expected '```lua' to be retained in buffer during scroll")
+
+    Slides.quit()
+    vim.api.nvim_buf_delete(buf, { force = true })
+  end)
 end)

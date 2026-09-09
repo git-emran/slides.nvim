@@ -198,6 +198,24 @@ T.describe("slides.view", function()
     T.assert_true(mark_text:match("1/1") ~= nil, "Expected footer to contain '1/1'")
     T.assert_true(mark_text:match("Scroll down") ~= nil, "Expected footer to contain 'Scroll down'")
 
+    -- 5. Test that scrolling moves view without mutating buffer lines (preserving code blocks and AST)
+    local initial_buf_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+    state.scroll_offset = 5
+    state.last_scroll_dir = "down"
+    view.scroll_slide(state, config)
+    local scrolled_buf_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+    T.assert_deep_equal(initial_buf_lines, scrolled_buf_lines)
+    T.assert_equal(state.scroll_status, "Scroll down")
+
+    state.scroll_offset = state.max_scroll_offset
+    view.scroll_slide(state, config)
+    T.assert_equal(state.scroll_status, "End")
+
+    state.scroll_offset = 2
+    state.last_scroll_dir = "up"
+    view.scroll_slide(state, config)
+    T.assert_equal(state.scroll_status, "Scroll up")
+
     vim.api.nvim_buf_delete(buf, { force = true })
   end)
 end)
