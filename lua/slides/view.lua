@@ -363,7 +363,11 @@ function M.create_view(state, config, on_cleanup)
 
   -- Create dedicated slide buffer
   local slide_buf = vim.api.nvim_create_buf(false, true)
-  pcall(vim.api.nvim_buf_set_name, slide_buf, "slides://presentation." .. ext)
+  local existing = vim.fn.bufnr("^Slides$")
+  if existing ~= -1 and existing ~= slide_buf and vim.api.nvim_buf_is_valid(existing) then
+    pcall(vim.api.nvim_buf_delete, existing, { force = true })
+  end
+  pcall(vim.api.nvim_buf_set_name, slide_buf, "Slides")
 
   M.default_configure_buffer(slide_buf, state.filetype)
 
@@ -378,9 +382,15 @@ function M.create_view(state, config, on_cleanup)
     vim.cmd("tabnew")
     local tab = vim.api.nvim_get_current_tabpage()
     local win = vim.api.nvim_get_current_win()
+    local old_buf = vim.api.nvim_win_get_buf(win)
     vim.api.nvim_win_set_buf(win, slide_buf)
+    if old_buf ~= slide_buf and vim.api.nvim_buf_is_valid(old_buf) then
+      pcall(vim.api.nvim_buf_delete, old_buf, { force = true })
+    end
     state.slide_tab = tab
     state.slide_win = win
+    pcall(vim.api.nvim_tabpage_set_var, tab, "tab_title", "Slides")
+    pcall(vim.api.nvim_tabpage_set_var, tab, "name", "Slides")
     M.configure_window(win, config)
   else
     -- Buffer mode: replace current window buffer
@@ -553,7 +563,7 @@ function M.destroy_view(state, config)
     -- Close presentation tab if valid
     if state.slide_tab and vim.api.nvim_tabpage_is_valid(state.slide_tab) then
       if vim.api.nvim_get_current_tabpage() == state.slide_tab then
-        pcall(vim.cmd, "tabclose")
+        pcall(vim.cmd, "tabclose!")
       else
         local wins = vim.api.nvim_tabpage_list_wins(state.slide_tab)
         for _, w in ipairs(wins) do
@@ -571,6 +581,12 @@ function M.destroy_view(state, config)
     if state.source_win and vim.api.nvim_win_is_valid(state.source_win) then
       pcall(vim.api.nvim_set_current_win, state.source_win)
     end
+
+    -- Delete presentation buffer if still valid
+    if state.slide_buf and vim.api.nvim_buf_is_valid(state.slide_buf) then
+      pcall(vim.api.nvim_buf_delete, state.slide_buf, { force = true })
+      state.slide_buf = nil
+    end
   else
     -- Buffer mode: restore original buffer
     if state.source_win and vim.api.nvim_win_is_valid(state.source_win) then
@@ -581,6 +597,7 @@ function M.destroy_view(state, config)
     -- Delete presentation buffer if still valid
     if state.slide_buf and vim.api.nvim_buf_is_valid(state.slide_buf) then
       pcall(vim.api.nvim_buf_delete, state.slide_buf, { force = true })
+      state.slide_buf = nil
     end
   end
 end

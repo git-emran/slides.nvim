@@ -105,6 +105,8 @@ T.describe("slides.view", function()
     T.assert_not_nil(state.slide_tab)
     T.assert_not_nil(state.slide_buf)
     T.assert_not_nil(state.slide_win)
+    T.assert_equal(vim.api.nvim_tabpage_get_var(state.slide_tab, "tab_title"), "Slides")
+    T.assert_true(vim.api.nvim_buf_get_name(state.slide_buf):match("Slides") ~= nil)
 
     view.set_slide_content(state, 1, config)
     local lines = vim.api.nvim_buf_get_lines(state.slide_buf, 0, -1, false)
